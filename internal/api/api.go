@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/thiagoleet/go-ama-api/internal/store/pgstore"
 )
 
@@ -23,7 +24,7 @@ func NewHandler(q *pgstore.Queries) http.Handler {
 	}
 
 	r := chi.NewRouter()
-
+	r.Use(middleware.RequestID, middleware.Recoverer, middleware.Logger)
 	a.r = r
 
 	return a
