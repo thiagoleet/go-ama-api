@@ -44,7 +44,7 @@ func main() {
 	handler := api.NewHandler(pgstore.New(pool))
 
 	go func() {
-		if err := http.ListenAndServe(":8000", handler); err != nil {
+		if err := http.ListenAndServe(":8080", handler); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
 				panic(err)
 			}

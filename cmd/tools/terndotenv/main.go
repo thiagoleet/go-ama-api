@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 
 	"github.com/joho/godotenv"
@@ -11,18 +10,18 @@ import (
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		slog.Error("Error loading .env file", "error", err)
 		return
 	}
 
-	fmt.Println("Starting migration...")
+	slog.Info("Starting migration...")
 
 	cmd := exec.Command("tern", "migrate", "--migrations", "./internal/store/pgstore/migrations", "--config", "./internal/store/pgstore/migrations/tern.conf")
 
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Command failed with error: %v\n", err)
+		slog.Error("Command failed with error", "error", err)
 		return
 	}
 
-	fmt.Println("Migration completed successfully")
+	slog.Info("Migration completed successfully")
 }
