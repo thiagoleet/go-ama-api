@@ -28,6 +28,9 @@ func NewHandler(q *pgstore.Queries) http.Handler {
 	// Adding middlewares
 	r.Use(middleware.RequestID, middleware.Recoverer, middleware.Logger)
 
+	// Adding Web Socket
+	r.Get("/subscribe/{room_id}", a.handleSubscribe)
+
 	// Adding routes
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/rooms", func(r chi.Router) {
@@ -69,3 +72,5 @@ func (h apiHandler) handleReactToMessage(w http.ResponseWriter, r *http.Request)
 func (h apiHandler) handleRemoveReactFromMessage(w http.ResponseWriter, r *http.Request) {}
 
 func (h apiHandler) handleMarkMessageAsAnswered(w http.ResponseWriter, r *http.Request) {}
+
+func (h apiHandler) handleSubscribe(w http.ResponseWriter, r *http.Request) {}
