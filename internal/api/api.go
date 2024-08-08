@@ -178,6 +178,7 @@ func (h apiHandler) handleGetRooms(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		slog.Error("failed to get rooms", "error", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
@@ -188,7 +189,29 @@ func (h apiHandler) handleGetRooms(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (h apiHandler) handleGetRoomMessages(w http.ResponseWriter, r *http.Request) {}
+func (h apiHandler) handleGetRoomMessages(w http.ResponseWriter, r *http.Request) {
+	rawRoomID := chi.URLParam(r, "room_id")
+	roomID, err := uuid.Parse(rawRoomID)
+
+	if err != nil {
+		http.Error(w, "invalid room id", http.StatusBadRequest)
+		return
+	}
+
+	u := usecases.NewGetRoomMessages(h.q, r.Context())
+
+	response, err := u.Execute(roomID)
+
+	if err != nil {
+		slog.Error("failed to get room messages", "error", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	data, _ := json.Marshal(response)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
+}
 
 func (h apiHandler) handleGetRoomMessage(w http.ResponseWriter, r *http.Request) {}
 

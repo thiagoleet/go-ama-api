@@ -28,6 +28,11 @@ func MapToRoomsDTO(rooms []pgstore.Room) []RoomDTO {
 		roomDTO := RoomToDTO(room)
 		dtoList = append(dtoList, roomDTO)
 	}
+
+	if dtoList == nil {
+		return []RoomDTO{}
+	}
+
 	return dtoList
 }
 
@@ -38,4 +43,36 @@ func RoomToDTO(room pgstore.Room) RoomDTO {
 	}
 
 	return roomDTO
+}
+
+type MessageDTO struct {
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	Message        string `json:"message"`
+	ReactionsCount int64  `json:"reactions_count"`
+	Answered       bool   `json:"answered"`
+}
+
+func MessageToDTO(message pgstore.Message) MessageDTO {
+	return MessageDTO{
+		ID:             message.ID.String(),
+		RoomID:         message.RoomID.String(),
+		Message:        message.Message,
+		ReactionsCount: message.ReactionsCount,
+		Answered:       message.Answered,
+	}
+}
+
+func MapToMessagesDTO(messages []pgstore.Message) []MessageDTO {
+	var dtoList []MessageDTO
+	for _, message := range messages {
+		messageDTO := MessageToDTO(message)
+		dtoList = append(dtoList, messageDTO)
+	}
+
+	if dtoList == nil {
+		return []MessageDTO{}
+	}
+
+	return dtoList
 }
