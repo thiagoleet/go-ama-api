@@ -213,12 +213,178 @@ func (h apiHandler) handleGetRoomMessages(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(data)
 }
 
-func (h apiHandler) handleGetRoomMessage(w http.ResponseWriter, r *http.Request) {}
+func (h apiHandler) handleGetRoomMessage(w http.ResponseWriter, r *http.Request) {
+	h.handleGetRoomMessages(w, r)
+}
 
-func (h apiHandler) handleReactToMessage(w http.ResponseWriter, r *http.Request) {}
+func (h apiHandler) handleReactToMessage(w http.ResponseWriter, r *http.Request) {
+	rawMessageID := chi.URLParam(r, "message_id")
+	messageID, err := uuid.Parse(rawMessageID)
 
-func (h apiHandler) handleRemoveReactFromMessage(w http.ResponseWriter, r *http.Request) {}
+	if err != nil {
+		http.Error(w, "invalid message id", http.StatusBadRequest)
+		return
+	}
 
-func (h apiHandler) handleMarkMessageAsAnswered(w http.ResponseWriter, r *http.Request) {}
+	u := usecases.NewReactToMessageUseCase(h.q, r.Context())
 
-func (h apiHandler) handleSubscribe(w http.ResponseWriter, r *http.Request) {}
+	response, err := u.Execute(messageID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Error("message not found", "error", err)
+			http.Error(w, "message not found", http.StatusNotFound)
+
+			return
+		}
+
+		slog.Error("failed to get message", "error", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	data, _ := json.Marshal(response)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
+
+	notifyClients := usecases.NewNotifyClientsUseCase(h.mu, h.subscribers).Execute
+
+	go notifyClients(entity.Message{
+		Kind: entity.MessageKindMessageReactAdded,
+		Value: entity.MessageMessageReactAdded{
+			ID:    response.MessageID,
+			Count: response.ReactionsCount,
+		},
+	})
+
+}
+
+func (h apiHandler) handleRemoveReactFromMessage(w http.ResponseWriter, r *http.Request) {
+	rawMessageID := chi.URLParam(r, "message_id")
+	messageID, err := uuid.Parse(rawMessageID)
+
+	if err != nil {
+		http.Error(w, "invalid message id", http.StatusBadRequest)
+		return
+	}
+
+	u := usecases.NewRemoveReactFromMessageUseCase(h.q, r.Context())
+
+	response, err := u.Execute(messageID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Error("message not found", "error", err)
+			http.Error(w, "message not found", http.StatusNotFound)
+
+			return
+		}
+
+		slog.Error("failed to get message", "error", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	data, _ := json.Marshal(response)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
+
+	notifyClients := usecases.NewNotifyClientsUseCase(h.mu, h.subscribers).Execute
+
+	go notifyClients(entity.Message{
+		Kind: entity.MessageKindMessageReactedRemoved,
+		Value: entity.MessageMessageReactRemoved{
+			ID:    response.MessageID,
+			Count: response.ReactionsCount,
+		},
+	})
+}
+
+func (h apiHandler) handleMarkMessageAsAnswered(w http.ResponseWriter, r *http.Request) {
+	rawMessageID := chi.URLParam(r, "message_id")
+	messageID, err := uuid.Parse(rawMessageID)
+
+	if err != nil {
+		http.Error(w, "invalid message id", http.StatusBadRequest)
+		return
+	}
+
+	u := usecases.NewAnswerMessageUseCase(h.q, r.Context())
+
+	response, err := u.Execute(messageID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Error("message not found", "error", err)
+			http.Error(w, "message not found", http.StatusNotFound)
+
+			return
+		}
+
+		slog.Error("failed to get message", "error", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	data, _ := json.Marshal(response)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
+
+	notifyClients := usecases.NewNotifyClientsUseCase(h.mu, h.subscribers).Execute
+
+	go notifyClients(entity.Message{
+		Kind: entity.MessageKindMessageAnswered,
+		Value: entity.MessageMessageAnswered{
+			ID: response.MessageID,
+		},
+	})
+}
+
+func (h apiHandler) handleSubscribe(w http.ResponseWriter, r *http.Request) {
+	rawRoomID := chi.URLParam(r, "room_id")
+	roomID, err := uuid.Parse(rawRoomID)
+
+	if err != nil {
+		http.Error(w, "invalid room id", http.StatusBadRequest)
+		return
+	}
+
+	_, err = usecases.NewGetRoomByIdUseCase(h.q, r.Context()).Execute(roomID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "room not found", http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	c, err := h.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		slog.Warn("failed to upgrade connection", "error", err)
+		http.Error(w, "failed to upgrade to ws connection", http.StatusBadRequest)
+	}
+
+	defer c.Close()
+
+	ctx, cancel := context.WithCancel((r.Context()))
+
+	h.mu.Lock()
+
+	if _, ok := h.subscribers[rawRoomID]; !ok {
+		h.subscribers[rawRoomID] = make(map[*websocket.Conn]context.CancelFunc)
+	}
+
+	slog.Info("new client connected", "room_id", rawRoomID, "cliend_ip", r.RemoteAddr)
+	h.subscribers[rawRoomID][c] = cancel
+	h.mu.Unlock()
+
+	<-ctx.Done()
+
+	h.mu.Lock()
+	delete(h.subscribers[rawRoomID], c)
+	h.mu.Unlock()
+
+}

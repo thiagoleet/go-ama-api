@@ -3,7 +3,10 @@ package entity
 import "github.com/thiagoleet/go-ama-api/internal/store/pgstore"
 
 const (
-	MessageKindMessageCreated = "message_created"
+	MessageKindMessageCreated        = "message_created"
+	MessageKindMessageReactAdded     = "message_react_added"
+	MessageKindMessageReactedRemoved = "message_react_removed"
+	MessageKindMessageAnswered       = "message_answered"
 )
 
 type Message struct {
@@ -15,6 +18,20 @@ type Message struct {
 type MessageMessageCreated struct {
 	ID      string `json:"id"`
 	Message string `json:"message"`
+}
+
+type MessageMessageReactAdded struct {
+	ID    string `json:"id"`
+	Count int64  `json:"count"`
+}
+
+type MessageMessageReactRemoved struct {
+	ID    string `json:"id"`
+	Count int64  `json:"count"`
+}
+
+type MessageMessageAnswered struct {
+	ID string `json:"id"`
 }
 
 type RoomDTO struct {
